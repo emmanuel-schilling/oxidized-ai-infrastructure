@@ -1,12 +1,12 @@
 // reinforcement_learning/tests/common/mod.rs
 
+use ndarray::Array1;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use ndarray::Array1;
+use reinforcement_learning::core::environment::Environment;
 use std::env;
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use reinforcement_learning::core::environment::Environment;
 
 static INIT_PYTHON: OnceLock<()> = OnceLock::new();
 
@@ -29,7 +29,10 @@ pub fn ensure_python_initialized() {
                 let current = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
                 let candidates = [
                     current.join(".venv"),
-                    current.parent().map(|p| p.join(".venv")).unwrap_or_default(),
+                    current
+                        .parent()
+                        .map(|p| p.join(".venv"))
+                        .unwrap_or_default(),
                 ];
                 for candidate in candidates {
                     if candidate.exists() {
@@ -122,7 +125,8 @@ where
     E: Environment,
     F: FnMut(&E::Observation) -> E::Action,
 {
-    let mut current_obs = env.reset(seed)
+    let mut current_obs = env
+        .reset(seed)
         .expect("FAIL: Initial environment reset() returned an error");
     let mut total_steps = 0;
     let mut cumulative_reward = 0.0;
@@ -130,11 +134,18 @@ where
 
     for _ in 0..max_steps {
         let action = action_sampler(&current_obs);
-        let (next_obs, reward, terminated, truncated) = env.step(action)
+        let (next_obs, reward, terminated, truncated) = env
+            .step(action)
             .expect("FAIL: Environment step() returned an error");
 
-        assert!(!reward.is_nan(), "FAIL: Environment produced NaN reward scalar");
-        assert!(!reward.is_infinite(), "FAIL: Environment produced infinite reward scalar");
+        assert!(
+            !reward.is_nan(),
+            "FAIL: Environment produced NaN reward scalar"
+        );
+        assert!(
+            !reward.is_infinite(),
+            "FAIL: Environment produced infinite reward scalar"
+        );
 
         cumulative_reward += reward;
         total_steps += 1;
@@ -147,9 +158,11 @@ where
     }
 
     // Must be safely re-resettable after termination/truncation
-    let post_terminal_obs = env.reset(seed)
+    let post_terminal_obs = env
+        .reset(seed)
         .expect("FAIL: Post-terminal environment reset() returned an error");
-    let _ = env.step(action_sampler(&post_terminal_obs))
+    let _ = env
+        .step(action_sampler(&post_terminal_obs))
         .expect("FAIL: Post-terminal environment step() returned an error");
 
     ContractCheckSummary {

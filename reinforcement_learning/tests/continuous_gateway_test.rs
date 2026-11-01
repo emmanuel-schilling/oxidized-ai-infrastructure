@@ -13,7 +13,8 @@ fn test_continuous_initialization_and_observation_shape() {
     let mut env = PyO3ContinuousEnvironment::new("CartPole-v1", None)
         .expect("FAIL: Failed to instantiate CartPole-v1");
 
-    let obs = env.reset(Some(42))
+    let obs = env
+        .reset(Some(42))
         .expect("FAIL: env.reset() threw an error");
 
     // CartPole observation space: [cart_pos, cart_velocity, pole_angle, pole_velocity]
@@ -49,14 +50,26 @@ fn test_continuous_step_transition() {
 
     // Push cart right (action = 1)
     let step_result = env.step(1);
-    assert!(step_result.is_ok(), "FAIL: Step execution returned an error");
+    assert!(
+        step_result.is_ok(),
+        "FAIL: Step execution returned an error"
+    );
 
     let (next_obs, reward, terminated, truncated) = step_result.unwrap();
 
     common::assert_valid_continuous_observation(&next_obs, 4);
-    assert_eq!(reward, 1.0, "FAIL: CartPole survival step should yield reward 1.0");
-    assert!(!terminated, "FAIL: CartPole terminated on step 1 unexpectedly");
-    assert!(!truncated, "FAIL: CartPole truncated on step 1 unexpectedly");
+    assert_eq!(
+        reward, 1.0,
+        "FAIL: CartPole survival step should yield reward 1.0"
+    );
+    assert!(
+        !terminated,
+        "FAIL: CartPole terminated on step 1 unexpectedly"
+    );
+    assert!(
+        !truncated,
+        "FAIL: CartPole truncated on step 1 unexpectedly"
+    );
 }
 
 #[test]
@@ -65,7 +78,10 @@ fn test_continuous_invalid_environment_name_returns_error() {
 
     // Non-existent environment ID should fail gracefully with GatewayError::PyError
     let result = PyO3ContinuousEnvironment::new("NonExistentEnv-v999", None);
-    assert!(result.is_err(), "FAIL: Invalid env name should return Result::Err");
+    assert!(
+        result.is_err(),
+        "FAIL: Invalid env name should return Result::Err"
+    );
 }
 
 #[test]
@@ -102,5 +118,8 @@ fn test_continuous_full_contract_lifecycle() {
     );
 
     assert!(summary.total_steps > 0, "FAIL: No steps were executed");
-    assert!(summary.cumulative_reward > 0.0, "FAIL: No reward accumulated");
+    assert!(
+        summary.cumulative_reward > 0.0,
+        "FAIL: No reward accumulated"
+    );
 }
