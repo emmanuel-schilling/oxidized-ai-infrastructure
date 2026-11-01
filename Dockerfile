@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------
-# STAGE 1: The Development & Automated Test Environment (Option B)
+# Development & Automated Test Environment
 # ---------------------------------------------------------------------
 FROM rust:1.85-slim-bookworm AS development
 
@@ -24,25 +24,6 @@ RUN pip install --no-cache-dir -r ./reinforcement_learning/python/requirements.t
 # Tell PyO3 exactly which Python interpreter binary to bind against during compilation
 ENV PYO3_PYTHON="/app/venv/bin/python"
 
-# Copy entire workspace metadata and code layers
-COPY Cargo.toml ./
+# Copy workspace metadata (with the lockfile for reproducible builds) and code
+COPY Cargo.toml Cargo.lock ./
 COPY reinforcement_learning/ ./reinforcement_learning/
-
-# ---------------------------------------------------------------------
-# STAGE 2: Production Compilation Cache
-# ---------------------------------------------------------------------
-FROM development AS builder
-RUN cargo build --release --bin reinforcement_learning_server
-
-# ---------------------------------------------------------------------
-# STAGE 3: Microscopic Production Inference Container (Option A)
-# ---------------------------------------------------------------------
-FROM debian:bookworm-slim AS production
-WORKDIR /app
-
-# Copy the high-performance binary from the builder layer (zero Python dependencies)
-COPY --from=builder /app/target/release/reinforcement_learning_server /app/inference_server
-
-EXPOSE 8080
-CMD ["./inference_server"]
-

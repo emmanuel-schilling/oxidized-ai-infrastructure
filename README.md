@@ -1,160 +1,96 @@
 # oxidized-ai-infrastructure
 
-[![CI](https://github.com/me-like-coffee/oxidized-ai-infrastructure/actions/workflows/<WORKFLOW_FILE>/badge.svg)](https://github.com/me-like-coffee/oxidized-ai-infrastructure/actions)
-<!-- TODO: confirm workflow filename, add license badge if desired -->
+[![CI](https://github.com/me-like-coffee/oxidized-ai-infrastructure/actions/workflows/ci.yml/badge.svg)](https://github.com/me-like-coffee/oxidized-ai-infrastructure/actions/workflows/ci.yml)
 
-A Rust implementation of tabular Q-learning and DQN, with a PyO3 bridge to
-Python's [Gymnasium](https://gymnasium.farama.org/) for environment stepping.
-The goal is to learn and measure what it costs to run RL training loops across
-a Rust/Python boundary, and to validate the Rust implementations against
-established Python references.
+A Rust foundation for implementing reinforcement learning algorithms from the
+University of Alberta
+[Reinforcement Learning specialization](https://www.coursera.org/specializations/reinforcement-learning)
+on Coursera. Environments come from Python's
+[Gymnasium](https://gymnasium.farama.org/) and are stepped from Rust through
+[PyO3](https://pyo3.rs/).
 
-**Status:** early-stage / work in progress. <!-- TODO: update as milestones land -->
+**Status:** early stage. The environment layer is complete and tested; no RL
+algorithms are implemented yet.
 
-## Motivation
+## What's implemented
 
-<!-- TODO: 2-4 sentences in your own words. Suggested points:
-- Python RL loops are often bottlenecked by per-step interpreter and FFI overhead.
-- I wanted to quantify that overhead and see how much a Rust rollout loop recovers.
-- I also wanted a rigorous way to check a from-scratch implementation against a reference. -->
+- **`Environment` trait** ([`core/environment.rs`](reinforcement_learning/src/core/environment.rs)):
+  a seeded, fallible `reset`/`step` contract with associated observation,
+  action and error types, so algorithms never depend on where an environment
+  runs.
+- **PyO3 gateways** ([`pyo3_gateways/`](reinforcement_learning/src/pyo3_gateways/)):
+  wrappers that implement the trait over a `gymnasium.make(...)` environment.
+  - `PyO3DiscreteEnvironment`: `usize` observations and actions (e.g. FrozenLake).
+  - `PyO3ContinuousEnvironment`: `ndarray::Array1<f64>` observations and
+    `usize` actions (e.g. CartPole).
 
-## Scope
-
-**In scope**
-- Tabular Q-learning and DQN in Rust (`reinforcement_learning/`)
-- A PyO3 boundary for stepping Gymnasium environments from Rust
-- Component-level and statistical validation against Python references
-- Reproducible benchmarks of the FFI boundary and training loop
-
-**Non-goals (for now)**
-- Matching reference libraries bit-for-bit over full training runs
-- Competing with mature RL libraries on algorithm coverage
-- Production serving. <!-- TODO: edit if the inference binary is built and documented -->
+  Python exceptions and unexpected return shapes surface as a typed
+  `GatewayError` rather than panics.
+- **Integration tests** ([`tests/`](reinforcement_learning/tests/)) against an
+  embedded Python interpreter, covering:
+  - seeded determinism and known transitions for both gateways
+  - a reusable contract checker for any `Environment` implementation
+  - the FFI boundary itself: NumPy `float32` to `f64` conversion, GIL
+    contention across threads, and exception propagation
 
 ## Architecture
 
 ```
-  Rust (training loop)                         Python (environment)
- ┌──────────────────────┐   PyO3 boundary    ┌──────────────────────┐
- │ agent (Q-table/DQN)  │ ── action ───────▶ │ gymnasium.Env.step() │
- │ replay buffer        │ ◀─ obs, r, done ── │                      │
- │ optimizer / update   │                    └──────────────────────┘
- └──────────────────────┘
+  Rust                                        Python
+ ┌───────────────────────────┐  PyO3      ┌──────────────────────┐
+ │ algorithm (planned)       │            │                      │
+ │   │ uses                  │ ─ action ▶ │ gymnasium.Env.step() │
+ │   ▼                       │            │                      │
+ │ Environment trait         │ ◀ obs, r,  │                      │
+ │   PyO3*Environment        │   flags ── │                      │
+ └───────────────────────────┘            └──────────────────────┘
 ```
 
-<!-- TODO: replace the diagram above with the real one. Document:
-1. Who owns the observation/action buffers, and are they copied or shared?
-2. Where is the GIL acquired and released?
-3. How do Python exceptions map to Rust errors?
-4. Which crate handles tensor math / autodiff (ndarray, candle, burn, hand-rolled)? -->
+Each `reset` and `step` call acquires the GIL, calls into Gymnasium, and copies
+the result into Rust-owned values. The Gymnasium `info` dict is not passed
+through.
 
 ### Repository layout
 
 ```
 .
-├── reinforcement_learning/   # <TODO: one-line description, list crates/modules>
-├── Dockerfile                # multi-stage: dev/test image and runtime image
-├── docker-compose.yml
-├── run.sh                    # task runner (build, test, dev-test)
-├── init_workspace.sh         # <TODO: describe>
-└── .github/workflows/        # CI
+├── reinforcement_learning/
+│   ├── src/core/            # Environment trait
+│   ├── src/pyo3_gateways/   # Gymnasium wrappers and GatewayError
+│   ├── tests/               # integration and FFI boundary tests
+│   └── python/              # pinned Python dependencies
+├── Dockerfile               # Rust + Python test image
+├── docker-compose.yml       # runs the test suite in the container
+├── run.sh                   # task runner: dev-test, build, test
+└── .github/workflows/ci.yml # CI: build and test on Ubuntu
 ```
 
 ## Getting started
 
 ### Prerequisites
-- Docker (recommended), or a local Rust toolchain (>= <TODO: MSRV>) and Python
-  <TODO: version> with `gymnasium` installed
+
+Either Docker, or:
+- Rust 1.85 or later (the crate uses edition 2024)
+- Python 3.11 with the packages in
+  [`requirements.txt`](reinforcement_learning/python/requirements.txt)
+  installed in a `.venv` at the repository root
 
 ### Build and test
 
 ```bash
-./run.sh build      # build container images
-./run.sh test       # run the full test suite inside the container
-./run.sh dev-test   # run tests on the host (requires local toolchain)
+./run.sh dev-test   # run the tests on the host against .venv
+./run.sh build      # build the Docker test image
+./run.sh test       # run the tests inside the container
 ```
-
-<!-- TODO: add a "run a training example" command and its expected output -->
-
-## Validation
-
-Tests are split into two tiers because they make different guarantees.
-
-**1. Component-level golden tests (tight tolerance)**
-With fixed inputs, deterministic pieces are compared against reference
-outputs generated by Python:
-
-| Component | Reference | Tolerance | Status |
-|---|---|---|---|
-| Q-learning update | <TODO> | <TODO> | <TODO> |
-| DQN TD target | <TODO: e.g. stable-baselines3> | <TODO> | <TODO> |
-| DQN loss / gradient | <TODO> | <TODO> | <TODO> |
-| Optimizer step | <TODO> | <TODO> | <TODO> |
-
-Golden files are generated by `<TODO: script path>` using pinned versions of
-the reference libraries (<TODO: versions>).
-
-**2. Statistical tests for full training runs**
-Training is stochastic and RNG streams differ across languages, so full runs
-are not expected to match exactly. Instead: over N = <TODO> seeds, final mean
-return on <TODO: environment> should fall within <TODO> of the reference
-implementation.
-
-## Benchmarks
-
-> No results yet. Numbers will be added here only once they can be reproduced
-> with the command below.
-
-**Environment:** <TODO: CPU model, core count, RAM, OS, kernel, Rust and Python
-versions>. Benchmarks should be run natively on Linux; timings under Docker
-Desktop on macOS run inside a VM and are not representative.
-
-**Reproduce:**
-```bash
-# TODO: exact command(s)
-```
-
-### FFI overhead
-
-| Measurement | Value |
-|---|---|
-| Per-step overhead, Rust to Gymnasium `step()` | <TODO> |
-| Same loop in pure Python | <TODO> |
-| Steps/sec, <TODO: env>, 1 worker | <TODO> |
-
-### Training throughput and learning curves
-
-| Implementation | Env | Steps/sec | Final mean return (± std, N seeds) |
-|---|---|---|---|
-| This repo (Rust) | <TODO> | <TODO> | <TODO> |
-| stable-baselines3 | <TODO> | <TODO> | <TODO> |
-
-<!-- TODO: add a learning-curve plot at docs/learning_curve.png -->
-
-### Profiling notes
-<!-- TODO: where does the time go? (flamegraph, perf, py-spy). Include cases
-where Rust is not faster. -->
-
-## Design notes
-
-<!-- TODO: link or inline a short docs/design.md covering key decisions, e.g.
-- Why this buffer layout across the FFI boundary
-- GIL handling strategy
-- Error handling across the boundary
-- Alternatives considered and rejected -->
-
-## Known limitations
-
-- <TODO: e.g. single-environment stepping only; no vectorization yet>
-- <TODO: e.g. environments are Python-bound, so throughput is capped by the Python step>
-- <TODO: any validation gaps from the table above>
 
 ## Roadmap
 
-- [ ] Add benchmark suite and publish results
-- [ ] Batched / vectorized environment stepping
-- [ ] Release a Python wheel via `maturin`
-- [ ] <TODO: other milestones>
+Each algorithm will be implemented three ways (pure Python, Rust agent with a
+Gymnasium environment, and pure Rust), checked for equivalent learning
+behaviour, and benchmarked before the next one starts.
+
+- [ ] Tabular Q-learning on FrozenLake
+- [ ] Further algorithms from the specialization
 
 ## License
 

@@ -18,8 +18,6 @@ jobs:
     # 1. High-efficiency Rust compiler cache
     - name: Set up Rust Cache
       uses: Swatinem/rust-cache@v2
-      with:
-        workspaces: "reinforcement_learning"
 
     # 2. Setup Python environment and cache pip packages
     - name: Install Python 3.11

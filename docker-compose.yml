@@ -1,23 +1,12 @@
 services:
-  # The automated validation pipeline (Option B environment)
+  # The automated validation pipeline
   rl-test:
     build:
       context: .
       dockerfile: Dockerfile
       target: development
     environment:
-      - UPDATE_GOLDEN_FILES=0
       - RUST_BACKTRACE=1
     volumes:
       - ./reinforcement_learning:/app/reinforcement_learning
     command: cargo test --package reinforcement_learning -- --nocapture
-
-  # Future Option A server endpoint deployment profile
-  rl-inference:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
-    ports:
-      - "8080:8080"
-
