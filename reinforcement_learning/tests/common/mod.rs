@@ -48,6 +48,13 @@ pub fn ensure_python_initialized() {
                 path.call_method1("insert", (0, site_packages.to_string_lossy().to_string()))
                     .expect("FAIL: Could not inject site-packages into sys.path");
             }
+
+            // Import gymnasium fully before any test thread touches it. Concurrent
+            // first imports of the package and one of its submodules can trip
+            // Python's import-lock deadlock detection, which hands one thread a
+            // partially initialized module.
+            py.import("gymnasium")
+                .expect("FAIL: Could not import gymnasium");
         });
     });
 }
