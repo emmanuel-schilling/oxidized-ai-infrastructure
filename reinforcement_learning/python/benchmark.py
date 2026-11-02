@@ -4,16 +4,20 @@
 
 Follows the benchmarking methodology: release builds, fixed seeds and episode
 counts, warmup runs, repeated samples in rounds that rotate the variant order,
-and a spread check that flags any measurement whose coefficient of variation
-exceeds 5%. End-to-end timing needs hyperfine on PATH.
+and a spread check that flags any training run or microbenchmark whose
+coefficient of variation exceeds 5%. End-to-end timing needs hyperfine on PATH.
 
 Each variant also runs with zero episodes, which times startup alone (process
 launch, Python imports, building the environment), so training time is the
-difference between the two.
+difference between the two. Startup's spread is reported but not checked: it
+only enters the results through that difference, whose standard error
+includes it. Native Rust trains for many more episodes than the others, so
+its startup stays a small part of its run; the variants compare per step.
 """
 
 import argparse
 import json
+import math
 import os
 import platform
 import shlex
@@ -65,8 +69,9 @@ def build_rust_example(env: dict[str, str]) -> Path:
     raise RuntimeError("cargo build reported no train_frozen_lake executable")
 
 
-def commands(rust_binary: Path, episodes: int, seed: int) -> dict[str, list[str]]:
-    """Each variant's training command, and its zero-episode startup command."""
+def commands(rust_binary: Path, episodes: dict[str, int], seed: int) -> dict[str, list[str]]:
+    """Each variant's training command for its episode count, and its
+    zero-episode startup command."""
     programs = {
         "rust_native": [str(rust_binary), "native"],
         "rust_gymnasium": [str(rust_binary), "gymnasium"],
@@ -75,7 +80,7 @@ def commands(rust_binary: Path, episodes: int, seed: int) -> dict[str, list[str]
     }
     result = {}
     for variant in VARIANTS:
-        result[f"{variant}/train"] = programs[variant] + [str(episodes), str(seed)]
+        result[f"{variant}/train"] = programs[variant] + [str(episodes[variant]), str(seed)]
         result[f"{variant}/startup"] = programs[variant] + ["0", str(seed)]
     return result
 
@@ -156,25 +161,35 @@ def run_criterion(env: dict[str, str], output: Path) -> dict[str, Stats]:
 def training_summary(
     samples: dict[str, list[float]], steps: dict[str, int]
 ) -> dict[str, dict[str, float]]:
-    """Training time with startup subtracted, per run and per step, for each variant."""
+    """Training time with startup subtracted, per run and per step, for each
+    variant, with standard errors that combine both measurements' spread."""
     summary = {}
     for variant in VARIANTS:
         train = summarize(samples[f"{variant}/train"])
         startup = summarize(samples[f"{variant}/startup"])
         seconds = train.mean - startup.mean
+        standard_error = math.hypot(
+            train.std_dev / math.sqrt(train.samples), startup.std_dev / math.sqrt(startup.samples)
+        )
+        variant_steps = steps[f"{variant}/train"]
         summary[variant] = {
-            "steps": steps[f"{variant}/train"],
+            "steps": variant_steps,
             "training_seconds": seconds,
-            "seconds_per_step": seconds / steps[f"{variant}/train"],
+            "training_seconds_standard_error": standard_error,
+            "seconds_per_step": seconds / variant_steps,
+            "seconds_per_step_standard_error": standard_error / variant_steps,
         }
     return summary
 
 
 def too_noisy(stats: dict[str, Stats]) -> list[str]:
+    """The checked measurements whose spread exceeds the limit: everything but
+    startup, whose spread is carried into the training-time standard error."""
     return [
         name
         for name, s in stats.items()
-        if s.coefficient_of_variation > MAX_COEFFICIENT_OF_VARIATION
+        if not name.endswith("/startup")
+        and s.coefficient_of_variation > MAX_COEFFICIENT_OF_VARIATION
     ]
 
 
@@ -225,7 +240,15 @@ def machine_description() -> dict[str, Any]:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the Q-learning benchmark suite.")
-    parser.add_argument("--episodes", type=int, default=20_000)
+    parser.add_argument(
+        "--episodes", type=int, default=20_000, help="for the Python-using variants"
+    )
+    parser.add_argument(
+        "--native-episodes",
+        type=int,
+        default=1_000_000,
+        help="for native Rust, which runs 20,000 episodes in about 20 ms",
+    )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--rounds", type=int, default=3, help="hyperfine rounds")
     parser.add_argument("--runs", type=int, default=4, help="timed runs per command per round")
@@ -246,7 +269,10 @@ def main(argv: list[str] | None = None) -> int:
     (output / "hyperfine").mkdir(parents=True, exist_ok=True)
     env = run_env()
 
-    named = commands(build_rust_example(env), args.episodes, args.seed)
+    episodes = {variant: args.episodes for variant in VARIANTS} | {
+        "rust_native": args.native_episodes
+    }
+    named = commands(build_rust_example(env), episodes, args.seed)
     steps = count_steps({name: c for name, c in named.items() if name.endswith("/train")}, env)
     rounds = [
         run_hyperfine(

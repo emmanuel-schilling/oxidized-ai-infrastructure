@@ -59,8 +59,18 @@ def time_per_call(call: Callable[[], object], repeats: int) -> Stats:
     return summarize([total / number for total in timer.repeat(repeat=repeats, number=number)])
 
 
+def untied_agent(agent_class: Any) -> Any:
+    """An agent with one best action per state, as after early training. On an
+    all-zero table every action choice would tie and take the slower
+    tie-breaking path."""
+    agent = agent_class(16, 4, PARAMS, 0)
+    for state in range(16):
+        agent.update(state, state % 4, 1.0, 0, True)
+    return agent
+
+
 def agent_cases(name: str, agent_class: Any) -> dict[str, Callable[[], object]]:
-    select_agent = agent_class(16, 4, PARAMS, 0)
+    select_agent = untied_agent(agent_class)
     update_agent = agent_class(16, 4, PARAMS, 0)
     counter = {"state": 0, "step": 0}
 

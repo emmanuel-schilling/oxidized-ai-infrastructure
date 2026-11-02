@@ -14,6 +14,13 @@ const PARAMS: QLearningParams = QLearningParams {
 
 fn agent(c: &mut Criterion) {
     let mut agent = QLearning::new(16, 4, PARAMS, 0).expect("agent");
+    // One best action per state, as after early training. On an all-zero table
+    // every call would tie and take the slower tie-breaking path.
+    for state in 0..16 {
+        agent
+            .update(state, state % 4, 1.0, 0, true)
+            .expect("update");
+    }
     let mut state = 0;
     c.bench_function("rust_agent/select_action", |b| {
         b.iter(|| {

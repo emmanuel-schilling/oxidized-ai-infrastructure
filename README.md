@@ -123,8 +123,8 @@ uv run python reinforcement_learning/python/benchmark.py
 ```
 
 It writes raw samples, a machine description and `summary.json` to
-`results/benchmarks/<UTC time>/`, and exits with an error if any measurement's
-coefficient of variation exceeds 5%.
+`results/benchmarks/<UTC time>/`, and exits with an error if any training run's
+or microbenchmark's coefficient of variation exceeds 5%.
 
 To see where Python-driven training spends its time, record a flame graph with
 py-spy, installed in `.venv` by `uv sync`. On macOS, py-spy needs `sudo`:

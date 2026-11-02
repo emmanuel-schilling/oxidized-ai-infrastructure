@@ -23,10 +23,11 @@ def test_summarize_needs_two_samples() -> None:
         summarize([1.0])
 
 
-def test_too_noisy_flags_spread_above_five_percent() -> None:
+def test_too_noisy_flags_spread_above_five_percent_except_startup() -> None:
     steady = summarize([1.0, 1.01, 0.99])
     noisy = summarize([1.0, 1.2, 0.8])
-    assert benchmark.too_noisy({"steady": steady, "noisy": noisy}) == ["noisy"]
+    stats = {"a/train": steady, "b/train": noisy, "micro/step": noisy, "b/startup": noisy}
+    assert benchmark.too_noisy(stats) == ["b/train", "micro/step"]
 
 
 def test_rounds_rotate_the_order() -> None:
@@ -40,10 +41,11 @@ def test_rounds_rotate_the_order() -> None:
 
 
 def test_commands_cover_every_variant_with_a_startup_baseline() -> None:
-    commands = benchmark.commands(Path("train_frozen_lake"), episodes=500, seed=3)
+    episodes = {variant: 500 + i for i, variant in enumerate(benchmark.VARIANTS)}
+    commands = benchmark.commands(Path("train_frozen_lake"), episodes, seed=3)
     assert len(commands) == 2 * len(benchmark.VARIANTS)
     for variant in benchmark.VARIANTS:
-        assert commands[f"{variant}/train"][-2:] == ["500", "3"]
+        assert commands[f"{variant}/train"][-2:] == [str(episodes[variant]), "3"]
         assert commands[f"{variant}/startup"][-2:] == ["0", "3"]
         assert commands[f"{variant}/train"][:-2] == commands[f"{variant}/startup"][:-2]
 
@@ -89,8 +91,20 @@ def test_training_time_subtracts_startup() -> None:
         samples[f"{variant}/train"] = [2.5, 2.5]
         samples[f"{variant}/startup"] = [0.5, 0.5]
         steps[f"{variant}/train"] = 1_000
-    summary = benchmark.training_summary(samples, steps)
-    assert summary["python"] == {"steps": 1_000, "training_seconds": 2.0, "seconds_per_step": 0.002}
+    samples["python/train"] = [2.0, 3.0]  # standard error 0.5
+    samples["python/startup"] = [0.25, 0.75]  # standard error 0.25
+    summary = benchmark.training_summary(samples, steps)["python"]
+    assert summary["steps"] == 1_000
+    assert summary["training_seconds"] == pytest.approx(2.0)
+    assert summary["seconds_per_step"] == pytest.approx(0.002)
+    # The two standard errors add in quadrature: sqrt(0.5^2 + 0.25^2).
+    assert summary["training_seconds_standard_error"] == pytest.approx(0.5590170)
+    assert summary["seconds_per_step_standard_error"] == pytest.approx(0.5590170e-3)
+
+
+def test_native_rust_trains_longer_by_default() -> None:
+    args = benchmark.parse_args([])
+    assert (args.episodes, args.native_episodes) == (20_000, 1_000_000)
 
 
 def test_criterion_samples_become_seconds_per_iteration(tmp_path: Path) -> None:
@@ -115,6 +129,18 @@ def test_child_processes_can_find_the_virtual_environment() -> None:
     env = benchmark.run_env()
     assert env["PYO3_PYTHON"]
     assert "site-packages" in env["PYTHONPATH"]
+
+
+@pytest.mark.parametrize(
+    "agent_class",
+    [microbenchmarks.q_learning.QLearningAgent, microbenchmarks.oxidized_rl.QLearningAgent],
+)
+def test_action_choice_is_timed_without_ties(agent_class: Any) -> None:
+    # Ties take a slower path that training rarely hits once it is under way.
+    agent = microbenchmarks.untied_agent(agent_class)
+    for state in range(16):
+        values = agent.q_values(state)
+        assert values.count(max(values)) == 1
 
 
 def test_microbenchmark_cases_run() -> None:
