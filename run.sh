@@ -23,11 +23,12 @@ case "$COMMAND" in
         
         # Verify the local environment exists before compiling
         if [ ! -d ".venv" ]; then
-            echo "❌ Local .venv directory not found. Please run your Python installer script first."
+            echo "❌ Local .venv directory not found. Run 'uv sync' first."
             exit 1
         fi
         
         cargo test
+        uv run pytest -q
         ;;
         
     build)

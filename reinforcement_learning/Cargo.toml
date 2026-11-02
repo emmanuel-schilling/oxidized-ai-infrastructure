@@ -4,20 +4,46 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-# Embedded Python interop framework
-pyo3 = { version = "0.23", features = ["auto-initialize"] }
+# Embedded Python interop framework, for the Gymnasium gateways
+pyo3 = { version = "0.23", features = ["auto-initialize"], optional = true }
 
 # High-performance native linear algebra
 ndarray = "0.15"
 
 # Utilities
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+# float_roundtrip: parse f64 exactly, so golden files compare bit for bit
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
 rand = "0.8"
 # Named RNG algorithm: StdRng's algorithm may change between rand releases
 rand_chacha = "=0.3.1"
+
+[features]
+default = ["gymnasium"]
+# Gateways that embed Python to step Gymnasium environments. The agents and
+# native environments build without it, so a Python extension module can use them.
+gymnasium = ["dep:pyo3"]
 
 [lib]
 name = "reinforcement_learning"
 path = "src/lib.rs"
 
+[[test]]
+name = "continuous_gateway_test"
+required-features = ["gymnasium"]
+
+[[test]]
+name = "discrete_gateway_test"
+required-features = ["gymnasium"]
+
+[[test]]
+name = "ffi_boundary_test"
+required-features = ["gymnasium"]
+
+[[test]]
+name = "frozen_lake_parity_test"
+required-features = ["gymnasium"]
+
+[[test]]
+name = "q_learning_test"
+required-features = ["gymnasium"]

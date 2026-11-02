@@ -1,0 +1,58 @@
+[project]
+name = "oxidized-ai-infrastructure"
+version = "0.1.0"
+description = "Python side of the RL benchmarks: Gymnasium, the pure-Python agents, and the Rust agents as a Python module"
+requires-python = "==3.11.*"
+dependencies = [
+    "gymnasium==0.29.1",
+    "numpy==1.26.4",
+]
+
+[dependency-groups]
+dev = [
+    "pyright==1.1.414",
+    "pytest==9.2.0",
+    "ruff==0.17.3",
+]
+
+# The project installs as the Rust extension module oxidized_rl, built by maturin.
+[build-system]
+requires = ["maturin==1.16.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+manifest-path = "reinforcement_learning_py/Cargo.toml"
+module-name = "oxidized_rl"
+# Only maturin's builds enable extension-module, so cargo test can still link
+# the crate against libpython.
+features = ["pyo3/extension-module"]
+# Optimized even for local installs: the module is benchmarked.
+profile = "release"
+
+[tool.uv]
+# Rebuild the extension module when its Rust sources change.
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "Cargo.lock" },
+    { file = "reinforcement_learning/Cargo.toml" },
+    { file = "reinforcement_learning/src/**/*.rs" },
+    { file = "reinforcement_learning_py/Cargo.toml" },
+    { file = "reinforcement_learning_py/src/**/*.rs" },
+    { file = "oxidized_rl.pyi" },
+]
+
+[tool.pytest.ini_options]
+testpaths = ["reinforcement_learning/python/tests"]
+pythonpath = ["reinforcement_learning/python"]
+
+[tool.ruff]
+line-length = 100
+exclude = ["target"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pyright]
+include = ["reinforcement_learning/python"]
+extraPaths = ["reinforcement_learning/python"]

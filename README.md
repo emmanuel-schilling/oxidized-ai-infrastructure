@@ -58,7 +58,9 @@ through.
 │   ├── src/core/            # Environment trait
 │   ├── src/pyo3_gateways/   # Gymnasium wrappers and GatewayError
 │   ├── tests/               # integration and FFI boundary tests
-│   └── python/              # pinned Python dependencies
+│   └── python/              # pure-Python agents and their pytest tests
+├── reinforcement_learning_py/ # Rust agents as the Python module oxidized_rl
+├── pyproject.toml           # Python dependencies, tool config, maturin build (uv)
 ├── Dockerfile               # Rust + Python test image
 ├── docker-compose.yml       # runs the test suite in the container
 ├── run.sh                   # task runner: dev-test, build, test
@@ -71,9 +73,9 @@ through.
 
 Either Docker, or:
 - Rust 1.85 or later (the crate uses edition 2024)
-- Python 3.11 with the packages in
-  [`requirements.txt`](reinforcement_learning/python/requirements.txt)
-  installed in a `.venv` at the repository root
+- Python 3.11 and [uv](https://docs.astral.sh/uv/); `uv sync` creates a
+  `.venv` at the repository root from the pinned versions in `uv.lock` and
+  builds the Rust extension module into it
 
 ### Build and test
 

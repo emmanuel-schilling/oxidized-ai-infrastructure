@@ -1,0 +1,14 @@
+[package]
+name = "reinforcement_learning_py"
+version = "0.1.0"
+edition = "2024"
+
+# Python extension module built by maturin (see [tool.maturin] in the root
+# pyproject.toml), which also enables pyo3/extension-module.
+[lib]
+name = "oxidized_rl"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = "0.23"
+reinforcement_learning = { path = "../reinforcement_learning", default-features = false }

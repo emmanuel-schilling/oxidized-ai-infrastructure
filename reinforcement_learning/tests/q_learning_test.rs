@@ -8,6 +8,8 @@ use reinforcement_learning::agents::q_learning::{QLearning, QLearningParams};
 use reinforcement_learning::core::environment::Environment;
 use reinforcement_learning::envs::frozen_lake::{DEFAULT_MAX_EPISODE_STEPS, FrozenLake, MAP_4X4};
 use reinforcement_learning::pyo3_gateways::discrete::PyO3DiscreteEnvironment;
+use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 const PARAMS: QLearningParams = QLearningParams {
     epsilon: 0.1,
@@ -16,6 +18,7 @@ const PARAMS: QLearningParams = QLearningParams {
 };
 const AGENT_SEED: u64 = 11;
 const ENV_SEED: u64 = 2024;
+const GOLDEN_Q_TABLE: &str = "q_learning_frozen_lake_4x4_deterministic.json";
 
 fn rust_lake(is_slippery: bool) -> FrozenLake {
     FrozenLake::new(&MAP_4X4, is_slippery, Some(DEFAULT_MAX_EPISODE_STEPS))
@@ -122,5 +125,56 @@ fn test_q_learning_beats_a_random_policy_on_the_slippery_lake() {
     assert!(
         rate > 0.3,
         "FAIL: Greedy success rate {rate} after training"
+    );
+}
+
+/// A Q-table shared with the Python tests, which check that the Rust agent
+/// driven from Python reproduces it.
+#[derive(Serialize, Deserialize)]
+struct GoldenQTable {
+    description: String,
+    q_values: Vec<Vec<f64>>,
+}
+
+#[test]
+fn test_q_learning_matches_the_golden_q_table_when_deterministic() {
+    let mut env = rust_lake(false);
+    let agent = train(&mut env, PARAMS, 200);
+    let q_values: Vec<Vec<f64>> = (0..16)
+        .map(|state| {
+            agent
+                .q_values(state)
+                .expect("FAIL: Q-table is missing a state")
+                .to_vec()
+        })
+        .collect();
+
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join(GOLDEN_Q_TABLE);
+    if std::env::var_os("UPDATE_GOLDEN_FILES").is_some() {
+        let golden = GoldenQTable {
+            description: "Q-table after 200 episodes on non-slippery FrozenLake 4x4: \
+                          epsilon 0.1, step_size 0.5, discount 0.9, agent seed 11, \
+                          environment seed 2024 on the first reset. Regenerate with \
+                          UPDATE_GOLDEN_FILES=1 cargo test --test q_learning_test."
+                .into(),
+            q_values: q_values.clone(),
+        };
+        let json = serde_json::to_string_pretty(&golden)
+            .expect("FAIL: Could not serialize the golden Q-table");
+        std::fs::write(&path, json + "\n").expect("FAIL: Could not write the golden Q-table");
+    }
+
+    let golden: GoldenQTable = std::fs::read_to_string(&path)
+        .map_err(|e| e.to_string())
+        .and_then(|text| serde_json::from_str(&text).map_err(|e| e.to_string()))
+        .expect("FAIL: Could not read the golden Q-table");
+    // Exact equality: serde_json writes the shortest text that round-trips each
+    // f64, and its float_roundtrip feature parses that text back exactly.
+    assert_eq!(
+        q_values, golden.q_values,
+        "FAIL: Q-table differs from {GOLDEN_Q_TABLE}"
     );
 }

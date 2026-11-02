@@ -19,19 +19,35 @@ jobs:
     - name: Set up Rust Cache
       uses: Swatinem/rust-cache@v2
 
-    # 2. Setup Python environment and cache pip packages
+    # 2. Python 3.11 interpreter for uv and for PyO3 to link against
     - name: Install Python 3.11
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-        cache: 'pip'
 
-    # 3. Replicate your local virtual environment structure exactly
-    - name: Install Monorepo Dependencies
+    # 3. Build .venv from uv.lock, exactly as on a developer machine; this
+    #    also compiles the Rust agents into the oxidized_rl module with maturin
+    - name: Install uv
+      uses: astral-sh/setup-uv@v10.3.3
+      with:
+        version: "0.13.6"
+        enable-cache: true
+
+    - name: Install Python Dependencies
+      run: uv sync --locked
+      env:
+        UV_PYTHON_DOWNLOADS: never
+
+    # 4. Python format, lint, type checks and tests
+    - name: Check Python
       run: |
-        python -m pip install --upgrade pip
-        pip install -r reinforcement_learning/python/requirements.txt
+        uv run ruff format --check .
+        uv run ruff check .
+        uv run pyright
+        uv run pytest -q
 
-    # 4. Execute test suites across your entire workspace
+    # 5. Execute test suites across your entire workspace
     - name: Run Workspace Tests
       run: cargo test --workspace --verbose
+      env:
+        PYO3_PYTHON: ${{ github.workspace }}/.venv/bin/python

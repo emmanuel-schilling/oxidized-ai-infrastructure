@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "reinforcement_learning",
+    "reinforcement_learning_py",
 ]
 
 [profile.release]
