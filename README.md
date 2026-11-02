@@ -9,6 +9,14 @@ on Coursera. Environments come from Python's
 [Gymnasium](https://gymnasium.farama.org/) and are stepped from Rust through
 [PyO3](https://pyo3.rs/).
 
+**Scope:** this is a personal learning project, not a competitive offering.
+Public Rust crates already cover similar ground, among them
+[`rurel`](https://crates.io/crates/rurel) (tabular Q-learning),
+[`border`](https://crates.io/crates/border) (an RL library) and
+[`gym-rs`](https://crates.io/crates/gym-rs) (Gym environments in pure Rust).
+The aim here is to understand the algorithms and the Rust–Python boundary by
+building them.
+
 **Status:** early stage. The environment layer is complete and tested; no RL
 algorithms are implemented yet.
 
@@ -84,6 +92,10 @@ Either Docker, or:
 ./run.sh build      # build the Docker test image
 ./run.sh test       # run the tests inside the container
 ```
+
+CI runs the Python checks and the Rust tests on Ubuntu for every push and pull
+request to `main`. Jobs time out after 15 minutes, so a hung test fails the
+run rather than holding it for GitHub's six-hour default.
 
 ## Roadmap
 

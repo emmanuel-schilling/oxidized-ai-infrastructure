@@ -10,6 +10,10 @@ jobs:
   test:
     name: Build and Test Workspace
     runs-on: ubuntu-latest
+    # A normal run takes a few minutes. The Rust tests share an embedded Python
+    # interpreter across threads, so a deadlock would hang rather than fail;
+    # this turns a hang into a failure instead of GitHub's six-hour default.
+    timeout-minutes: 15
 
     steps:
     - name: Checkout Source Code
