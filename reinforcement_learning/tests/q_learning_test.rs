@@ -18,11 +18,25 @@ const PARAMS: QLearningParams = QLearningParams {
 };
 const AGENT_SEED: u64 = 11;
 const ENV_SEED: u64 = 2024;
-const GOLDEN_Q_TABLE: &str = "q_learning_frozen_lake_4x4_deterministic.json";
+const SLIPPERY_PARAMS: QLearningParams = QLearningParams {
+    step_size: 0.02,
+    ..PARAMS
+};
+const SLIPPERY_EPISODES: usize = 20_000;
 
 fn rust_lake(is_slippery: bool) -> FrozenLake {
     FrozenLake::new(&MAP_4X4, is_slippery, Some(DEFAULT_MAX_EPISODE_STEPS))
         .expect("FAIL: Could not build the Rust FrozenLake")
+}
+
+fn gym_lake(is_slippery: bool) -> PyO3DiscreteEnvironment {
+    common::ensure_python_initialized();
+    Python::with_gil(|py| {
+        let kwargs = PyDict::new(py);
+        kwargs.set_item("is_slippery", is_slippery)?;
+        PyO3DiscreteEnvironment::new("FrozenLake-v1", Some(&kwargs))
+    })
+    .expect("FAIL: Could not create Gymnasium FrozenLake")
 }
 
 /// Trains a fresh agent for `episodes`, seeding the environment on the first reset only.
@@ -75,14 +89,7 @@ fn test_q_learning_finds_the_shortest_path_on_the_non_slippery_lake() {
 
 #[test]
 fn test_q_learning_hybrid_and_pure_rust_learn_identical_tables_when_deterministic() {
-    common::ensure_python_initialized();
-
-    let mut gym_env = Python::with_gil(|py| {
-        let kwargs = PyDict::new(py);
-        kwargs.set_item("is_slippery", false)?;
-        PyO3DiscreteEnvironment::new("FrozenLake-v1", Some(&kwargs))
-    })
-    .expect("FAIL: Could not create Gymnasium FrozenLake");
+    let mut gym_env = gym_lake(false);
     let mut rust_env = rust_lake(false);
 
     // Without slipping, neither environment uses randomness after reset, so the
@@ -110,11 +117,7 @@ fn test_q_learning_beats_a_random_policy_on_the_slippery_lake() {
     let mut env = rust_lake(true);
     // A constant step size of 0.5 keeps chasing individual slips; 0.02 averages
     // over them, so the greedy policy settles near the optimum.
-    let params = QLearningParams {
-        step_size: 0.02,
-        ..PARAMS
-    };
-    let mut agent = train(&mut env, params, 20_000);
+    let mut agent = train(&mut env, SLIPPERY_PARAMS, SLIPPERY_EPISODES);
 
     let successes = (0..EVAL_EPISODES)
         .filter(|_| greedy_episode(&mut agent, &mut env).1 > 0.0)
@@ -136,11 +139,10 @@ struct GoldenQTable {
     q_values: Vec<Vec<f64>>,
 }
 
-#[test]
-fn test_q_learning_matches_the_golden_q_table_when_deterministic() {
-    let mut env = rust_lake(false);
-    let agent = train(&mut env, PARAMS, 200);
-    let q_values: Vec<Vec<f64>> = (0..16)
+/// Compares `agent`'s Q-table exactly with the fixture `file_name`, first
+/// rewriting the fixture when `UPDATE_GOLDEN_FILES` is set.
+fn assert_matches_golden(agent: &QLearning, file_name: &str, description: &str) {
+    let q_values: Vec<Vec<f64>> = (0..agent.num_states())
         .map(|state| {
             agent
                 .q_values(state)
@@ -152,14 +154,13 @@ fn test_q_learning_matches_the_golden_q_table_when_deterministic() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join("fixtures")
-        .join(GOLDEN_Q_TABLE);
+        .join(file_name);
     if std::env::var_os("UPDATE_GOLDEN_FILES").is_some() {
         let golden = GoldenQTable {
-            description: "Q-table after 200 episodes on non-slippery FrozenLake 4x4: \
-                          epsilon 0.1, step_size 0.5, discount 0.9, agent seed 11, \
-                          environment seed 2024 on the first reset. Regenerate with \
-                          UPDATE_GOLDEN_FILES=1 cargo test --test q_learning_test."
-                .into(),
+            description: format!(
+                "{description} Regenerate with \
+                 UPDATE_GOLDEN_FILES=1 cargo test --test q_learning_test."
+            ),
             q_values: q_values.clone(),
         };
         let json = serde_json::to_string_pretty(&golden)
@@ -175,6 +176,34 @@ fn test_q_learning_matches_the_golden_q_table_when_deterministic() {
     // f64, and its float_roundtrip feature parses that text back exactly.
     assert_eq!(
         q_values, golden.q_values,
-        "FAIL: Q-table differs from {GOLDEN_Q_TABLE}"
+        "FAIL: Q-table differs from {file_name}"
+    );
+}
+
+#[test]
+fn test_q_learning_matches_the_golden_q_table_when_deterministic() {
+    let mut env = rust_lake(false);
+    let agent = train(&mut env, PARAMS, 200);
+    assert_matches_golden(
+        &agent,
+        "q_learning_frozen_lake_4x4_deterministic.json",
+        "Q-table after 200 episodes on non-slippery FrozenLake 4x4: \
+         epsilon 0.1, step_size 0.5, discount 0.9, agent seed 11, \
+         environment seed 2024 on the first reset.",
+    );
+}
+
+#[test]
+fn test_q_learning_on_slippery_gymnasium_matches_the_golden_q_table() {
+    // Gymnasium's own seeded generator decides every slip, so the Rust agent
+    // driven from Python, on the same environment, must reproduce this table.
+    let mut env = gym_lake(true);
+    let agent = train(&mut env, SLIPPERY_PARAMS, SLIPPERY_EPISODES);
+    assert_matches_golden(
+        &agent,
+        "q_learning_frozen_lake_4x4_slippery_gymnasium.json",
+        "Q-table after 20,000 episodes on Gymnasium's slippery FrozenLake 4x4, \
+         driven from Rust: epsilon 0.1, step_size 0.02, discount 0.9, agent \
+         seed 11, environment seed 2024 on the first reset.",
     );
 }

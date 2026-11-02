@@ -45,5 +45,9 @@ name = "frozen_lake_parity_test"
 required-features = ["gymnasium"]
 
 [[test]]
+name = "q_learning_equivalence_test"
+required-features = ["gymnasium"]
+
+[[test]]
 name = "q_learning_test"
 required-features = ["gymnasium"]

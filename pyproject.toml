@@ -45,6 +45,9 @@ cache-keys = [
 [tool.pytest.ini_options]
 testpaths = ["reinforcement_learning/python/tests"]
 pythonpath = ["reinforcement_learning/python"]
+# Slow tests are opt-in: uv run pytest -m slow
+addopts = "-m 'not slow'"
+markers = ["slow: long statistical comparisons, run with -m slow"]
 
 [tool.ruff]
 line-length = 100

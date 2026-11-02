@@ -20,12 +20,9 @@ import oxidized_rl
 PARAMS = QLearningParams(epsilon=0.1, step_size=0.5, discount=0.9)
 AGENT_SEED = 11
 ENV_SEED = 2024
-GOLDEN_Q_TABLE = (
-    Path(__file__).resolve().parents[2]
-    / "tests"
-    / "fixtures"
-    / "q_learning_frozen_lake_4x4_deterministic.json"
-)
+SLIPPERY_PARAMS = replace(PARAMS, step_size=0.02)
+SLIPPERY_EPISODES = 20_000
+FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures"
 
 
 class AgentUnderTest(q_learning.Agent, Protocol):
@@ -232,7 +229,7 @@ def test_finds_the_shortest_path_on_the_non_slippery_lake(agent_class: AgentFact
 def test_beats_a_random_policy_on_the_slippery_lake(agent_class: AgentFactory) -> None:
     # Same settings as the Rust test: a step size of 0.02 averages over slips.
     agent, env = train(
-        agent_class, is_slippery=True, params=replace(PARAMS, step_size=0.02), episodes=20_000
+        agent_class, is_slippery=True, params=SLIPPERY_PARAMS, episodes=SLIPPERY_EPISODES
     )
     successes = sum(greedy_episode(agent, env)[1] > 0.0 for _ in range(1_000))
     # A uniform random policy succeeds about 1.5% of the time; the optimal
@@ -240,10 +237,27 @@ def test_beats_a_random_policy_on_the_slippery_lake(agent_class: AgentFactory) -
     assert successes / 1_000 > 0.3
 
 
+def assert_matches_golden(agent: AgentUnderTest, file_name: str) -> None:
+    golden = json.loads((FIXTURES / file_name).read_text(encoding="utf-8"))["q_values"]
+    assert [agent.q_values(state) for state in range(16)] == golden
+
+
 def test_rust_agent_driven_from_python_matches_the_pure_rust_q_table() -> None:
     # Without slipping, Gymnasium uses no randomness after reset, so the Rust
     # agent's seeded stream fully determines training. Its table must equal the
     # one the pure-Rust run in tests/q_learning_test.rs wrote to the fixture.
     agent, _ = train(oxidized_rl.QLearningAgent, is_slippery=False, params=PARAMS, episodes=200)
-    golden = json.loads(GOLDEN_Q_TABLE.read_text(encoding="utf-8"))["q_values"]
-    assert [agent.q_values(state) for state in range(16)] == golden
+    assert_matches_golden(agent, "q_learning_frozen_lake_4x4_deterministic.json")
+
+
+def test_rust_agent_driven_from_python_matches_the_rust_driven_q_table_when_slippery() -> None:
+    # Both runs use the same Rust agent on Gymnasium with the same seeds, so
+    # every action and every slip agree. Only the training loop differs: this
+    # one in Python, the one in tests/q_learning_test.rs in Rust.
+    agent, _ = train(
+        oxidized_rl.QLearningAgent,
+        is_slippery=True,
+        params=SLIPPERY_PARAMS,
+        episodes=SLIPPERY_EPISODES,
+    )
+    assert_matches_golden(agent, "q_learning_frozen_lake_4x4_slippery_gymnasium.json")

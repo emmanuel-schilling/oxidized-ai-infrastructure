@@ -13,6 +13,9 @@ __pycache__/
 .mypy_cache/
 .ipynb_checkpoints/
 
+# --- Equivalence test output, regenerated on each slow run ---
+/results/
+
 # --- DevOps & OS Caches ---
 .DS_Store
 .env

@@ -93,8 +93,17 @@ Either Docker, or:
 ./run.sh test       # run the tests inside the container
 ```
 
-CI runs the Python checks and the Rust tests on Ubuntu for every push and pull
-request to `main`. Jobs time out after 15 minutes, so a hung test fails the
+The slow equivalence tests are opt-in. They train the Q-learning agent ten
+times per variant and check that the mean learning curves agree at every
+checkpoint, then write the curves to `results/` as JSON:
+
+```bash
+cargo test --test q_learning_equivalence_test -- --ignored
+uv run pytest -m slow
+```
+
+CI runs the Python checks, the Rust tests and the slow equivalence tests on
+Ubuntu for every push and pull request to `main`. Jobs time out after 15 minutes, so a hung test fails the
 run rather than holding it for GitHub's six-hour default.
 
 ## Roadmap

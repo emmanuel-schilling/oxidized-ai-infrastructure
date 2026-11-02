@@ -55,3 +55,11 @@ jobs:
       run: cargo test --workspace --verbose
       env:
         PYO3_PYTHON: ${{ github.workspace }}/.venv/bin/python
+
+    # 6. Opt-in statistical comparisons of the four Q-learning variants
+    - name: Run Slow Equivalence Tests
+      run: |
+        cargo test --test q_learning_equivalence_test -- --ignored
+        uv run pytest -q -m slow
+      env:
+        PYO3_PYTHON: ${{ github.workspace }}/.venv/bin/python
