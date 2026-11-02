@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------------
 # Development & Automated Test Environment
 # ---------------------------------------------------------------------
-FROM rust:1.85-slim-bookworm AS development
+FROM rust:1.86-slim-bookworm AS development
 
 # Install Python 3 (3.11 on bookworm), its headers and libpython for PyO3
 # to link against, and required system build libraries

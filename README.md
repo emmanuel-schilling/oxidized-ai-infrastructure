@@ -66,7 +66,9 @@ through.
 │   ├── src/core/            # Environment trait
 │   ├── src/pyo3_gateways/   # Gymnasium wrappers and GatewayError
 │   ├── tests/               # integration and FFI boundary tests
-│   └── python/              # pure-Python agents and their pytest tests
+│   ├── examples/            # training program for end-to-end benchmarks
+│   ├── benches/             # criterion microbenchmarks
+│   └── python/              # pure-Python agents, benchmark harness, pytest tests
 ├── reinforcement_learning_py/ # Rust agents as the Python module oxidized_rl
 ├── pyproject.toml           # Python dependencies, tool config, maturin build (uv)
 ├── Dockerfile               # Rust + Python test image
@@ -80,7 +82,8 @@ through.
 ### Prerequisites
 
 Either Docker, or:
-- Rust 1.85 or later (the crate uses edition 2024)
+- Rust 1.86 or later (the crate uses edition 2024, and its benchmark library,
+  criterion, needs 1.86)
 - Python 3.11 and [uv](https://docs.astral.sh/uv/); `uv sync` creates a
   `.venv` at the repository root from the pinned versions in `uv.lock` and
   builds the Rust extension module into it
@@ -103,8 +106,33 @@ uv run pytest -m slow
 ```
 
 CI runs the Python checks, the Rust tests and the slow equivalence tests on
-Ubuntu for every push and pull request to `main`. Jobs time out after 15 minutes, so a hung test fails the
-run rather than holding it for GitHub's six-hour default.
+Ubuntu for every push and pull request to `main`. Jobs time out after 15
+minutes, so a hung test fails the run rather than holding it for GitHub's
+six-hour default.
+
+### Benchmarks
+
+The benchmark harness times the four Q-learning variants: whole training runs
+with [hyperfine](https://github.com/sharkdp/hyperfine), and the agent and
+environment steps on their own with criterion (Rust) and `timeit` (Python).
+It needs hyperfine on `PATH`:
+
+```bash
+cargo install --locked hyperfine --version 2.0.0
+uv run python reinforcement_learning/python/benchmark.py
+```
+
+It writes raw samples, a machine description and `summary.json` to
+`results/benchmarks/<UTC time>/`, and exits with an error if any measurement's
+coefficient of variation exceeds 5%.
+
+To see where Python-driven training spends its time, record a flame graph with
+py-spy, installed in `.venv` by `uv sync`. On macOS, py-spy needs `sudo`:
+
+```bash
+sudo .venv/bin/py-spy record -o profile.svg -- \
+  .venv/bin/python reinforcement_learning/python/train_frozen_lake.py python 20000 0
+```
 
 ## Roadmap
 
