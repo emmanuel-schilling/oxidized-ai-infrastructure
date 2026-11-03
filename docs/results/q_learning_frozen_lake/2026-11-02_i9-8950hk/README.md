@@ -118,7 +118,8 @@ NumPy's per-call overhead outweighs the arithmetic.
 
 ## Method
 
-Measured following the project's benchmarking methodology:
+Measured following the project's
+[benchmarking methodology](../../../../README.md#benchmarking-methodology):
 
 - Release builds, fixed seeds and episode counts.
 - hyperfine 2.0.0 ran three rounds with the variant order rotated, each with
