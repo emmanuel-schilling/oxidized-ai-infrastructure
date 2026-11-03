@@ -69,14 +69,26 @@ def build_rust_example(env: dict[str, str]) -> Path:
     raise RuntimeError("cargo build reported no train_frozen_lake executable")
 
 
+def repo_relative(path: Path | str) -> str:
+    """`path` relative to the repository when it lies inside it, so recorded
+    commands and settings don't carry the machine's absolute paths."""
+    try:
+        return str(Path(path).relative_to(REPO))
+    except ValueError:
+        return str(path)
+
+
 def commands(rust_binary: Path, episodes: dict[str, int], seed: int) -> dict[str, list[str]]:
     """Each variant's training command for its episode count, and its
-    zero-episode startup command."""
+    zero-episode startup command, to run from the repository root."""
+    binary, python, script = (
+        repo_relative(path) for path in (rust_binary, sys.executable, TRAIN_SCRIPT)
+    )
     programs = {
-        "rust_native": [str(rust_binary), "native"],
-        "rust_gymnasium": [str(rust_binary), "gymnasium"],
-        "python": [sys.executable, str(TRAIN_SCRIPT), "python"],
-        "rust_from_python": [sys.executable, str(TRAIN_SCRIPT), "rust"],
+        "rust_native": [binary, "native"],
+        "rust_gymnasium": [binary, "gymnasium"],
+        "python": [python, script, "python"],
+        "rust_from_python": [python, script, "rust"],
     }
     result = {}
     for variant in VARIANTS:
@@ -90,7 +102,9 @@ def count_steps(train_commands: dict[str, list[str]], env: dict[str, str]) -> di
     fixed, so every timed run repeats exactly these steps."""
     steps = {}
     for name, command in train_commands.items():
-        output = subprocess.run(command, env=env, check=True, capture_output=True, text=True)
+        output = subprocess.run(
+            command, cwd=REPO, env=env, check=True, capture_output=True, text=True
+        )
         steps[name] = json.loads(output.stdout)["steps"]
     return steps
 
@@ -113,7 +127,7 @@ def run_hyperfine(
     arguments += ["--export-json", str(export)]
     for name in order:
         arguments += ["--command-name", name, shlex.join(named_commands[name])]
-    subprocess.run(arguments, env=env, check=True)
+    subprocess.run(arguments, cwd=REPO, env=env, check=True)
     return json.loads(export.read_text(encoding="utf-8"))
 
 
@@ -290,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
 
     noisy = too_noisy(end_to_end) + too_noisy(micro)
     summary = {
-        "settings": vars(args) | {"output": str(output)},
+        "settings": vars(args) | {"output": repo_relative(output)},
         "machine": machine_description(),
         "end_to_end": {name: s.to_dict() for name, s in end_to_end.items()},
         "training": training_summary(merge_samples(rounds), steps),

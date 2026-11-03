@@ -1,0 +1,195 @@
+{
+  "settings": {
+    "episodes": 20000,
+    "native_episodes": 1000000,
+    "seed": 0,
+    "rounds": 3,
+    "runs": 4,
+    "warmup": 1,
+    "micro_repeats": 30,
+    "output": "<repo>/results/benchmarks/20261102T082246Z"
+  },
+  "machine": {
+    "cpu": "Intel(R) Core(TM) i9-8950HK CPU @ 2.90GHz",
+    "logical_cores": 12,
+    "memory_bytes": 34359738368,
+    "platform": "macOS-15.8.2-x86_64-i386-64bit",
+    "machine": "x86_64",
+    "python": "3.11.18",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "hyperfine": "hyperfine 2.0.0",
+    "commit": "749e272fedbad2deb480469b0a5adb40306b6520",
+    "uncommitted_changes": false
+  },
+  "end_to_end": {
+    "rust_native/train": {
+      "mean": 1.1445366185833332,
+      "std_dev": 0.005267560346932383,
+      "median": 1.145351491,
+      "min": 1.134238643,
+      "samples": 12,
+      "coefficient_of_variation": 0.004602351957469375
+    },
+    "rust_native/startup": {
+      "mean": 0.007327564916666667,
+      "std_dev": 0.0007381123896737554,
+      "median": 0.007593369500000001,
+      "min": 0.006269336,
+      "samples": 12,
+      "coefficient_of_variation": 0.1007309246752501
+    },
+    "rust_gymnasium/train": {
+      "mean": 3.5056567491666666,
+      "std_dev": 0.06436744954012473,
+      "median": 3.5111296065,
+      "min": 3.420466841,
+      "samples": 12,
+      "coefficient_of_variation": 0.018361024522844566
+    },
+    "rust_gymnasium/startup": {
+      "mean": 0.18573494475,
+      "std_dev": 0.0012715974873887157,
+      "median": 0.185272426,
+      "min": 0.184146845,
+      "samples": 12,
+      "coefficient_of_variation": 0.006846301804435838
+    },
+    "python/train": {
+      "mean": 9.640203638916667,
+      "std_dev": 0.1635331044222787,
+      "median": 9.630263699499999,
+      "min": 9.270267625,
+      "samples": 12,
+      "coefficient_of_variation": 0.0169636566350227
+    },
+    "python/startup": {
+      "mean": 0.22347623150000004,
+      "std_dev": 0.0025689228342164797,
+      "median": 0.22322718400000002,
+      "min": 0.220309533,
+      "samples": 12,
+      "coefficient_of_variation": 0.011495284384265623
+    },
+    "rust_from_python/train": {
+      "mean": 3.6100429335000004,
+      "std_dev": 0.046332936721893606,
+      "median": 3.602597048,
+      "min": 3.557156511,
+      "samples": 12,
+      "coefficient_of_variation": 0.01283445587085387
+    },
+    "rust_from_python/startup": {
+      "mean": 0.22298294525000004,
+      "std_dev": 0.002458523917982239,
+      "median": 0.22233733100000003,
+      "min": 0.219970507,
+      "samples": 12,
+      "coefficient_of_variation": 0.011025614157288286
+    }
+  },
+  "training": {
+    "rust_native": {
+      "steps": 26261781,
+      "training_seconds": 1.1372090536666666,
+      "training_seconds_standard_error": 0.0015354695782388613,
+      "seconds_per_step": 4.3302815359958514e-08,
+      "seconds_per_step_standard_error": 5.846783880494858e-11
+    },
+    "rust_gymnasium": {
+      "steps": 425388,
+      "training_seconds": 3.3199218044166665,
+      "training_seconds_standard_error": 0.018584907677266962,
+      "seconds_per_step": 7.804455707299375e-06,
+      "seconds_per_step_standard_error": 4.368930876580196e-08
+    },
+    "python": {
+      "steps": 501837,
+      "training_seconds": 9.416727407416667,
+      "training_seconds_standard_error": 0.047213765300771544,
+      "seconds_per_step": 1.8764513990432486e-05,
+      "seconds_per_step_standard_error": 9.408187379721213e-08
+    },
+    "rust_from_python": {
+      "steps": 425388,
+      "training_seconds": 3.3870599882500003,
+      "training_seconds_standard_error": 0.013393982993401329,
+      "seconds_per_step": 7.962283816774334e-06,
+      "seconds_per_step_standard_error": 3.1486508771759734e-08
+    }
+  },
+  "microbenchmarks": {
+    "gymnasium_lake_via_pyo3/step": {
+      "mean": 8.265565015578998e-06,
+      "std_dev": 2.166757652065753e-07,
+      "median": 8.226478627192982e-06,
+      "min": 8.001455303030304e-06,
+      "samples": 100,
+      "coefficient_of_variation": 0.026214271474265003
+    },
+    "native_lake/step": {
+      "mean": 1.5899416051503057e-08,
+      "std_dev": 2.371431953489143e-10,
+      "median": 1.5858017170263017e-08,
+      "min": 1.5357283814823203e-08,
+      "samples": 100,
+      "coefficient_of_variation": 0.014915214155081869
+    },
+    "rust_agent/select_action": {
+      "mean": 1.803036063555539e-08,
+      "std_dev": 3.051003905275132e-10,
+      "median": 1.7978900379148345e-08,
+      "min": 1.7403570506198347e-08,
+      "samples": 100,
+      "coefficient_of_variation": 0.016921480201891433
+    },
+    "rust_agent/update": {
+      "mean": 6.260229856297108e-09,
+      "std_dev": 1.5050673280057242e-10,
+      "median": 6.2259273039976255e-09,
+      "min": 6.0146215797427676e-09,
+      "samples": 100,
+      "coefficient_of_variation": 0.02404172630325691
+    },
+    "python_agent/select_action": {
+      "mean": 5.546490882668877e-06,
+      "std_dev": 1.2896115002390118e-07,
+      "median": 5.5023516400251534e-06,
+      "min": 5.46699535996595e-06,
+      "samples": 30,
+      "coefficient_of_variation": 0.023250944200930025
+    },
+    "python_agent/update": {
+      "mean": 2.5174109256658996e-06,
+      "std_dev": 1.7773863831798964e-08,
+      "median": 2.5137154800177085e-06,
+      "min": 2.4902022999958717e-06,
+      "samples": 30,
+      "coefficient_of_variation": 0.00706037447068657
+    },
+    "rust_agent_from_python/select_action": {
+      "mean": 1.9714775801670233e-07,
+      "std_dev": 1.023610745190826e-09,
+      "median": 1.9690214399997784e-07,
+      "min": 1.9601460000012595e-07,
+      "samples": 30,
+      "coefficient_of_variation": 0.0051920993446149455
+    },
+    "rust_agent_from_python/update": {
+      "mean": 2.899367292332803e-07,
+      "std_dev": 4.962308758305433e-09,
+      "median": 2.9019976550080176e-07,
+      "min": 2.8356621800048745e-07,
+      "samples": 30,
+      "coefficient_of_variation": 0.01711514360884166
+    },
+    "gymnasium_lake/step": {
+      "mean": 7.970470338004815e-06,
+      "std_dev": 4.766052633309712e-08,
+      "median": 7.949694070048281e-06,
+      "min": 7.91329202002089e-06,
+      "samples": 30,
+      "coefficient_of_variation": 0.005979637877308455
+    }
+  },
+  "too_noisy": []
+}

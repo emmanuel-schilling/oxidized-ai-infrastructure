@@ -64,6 +64,22 @@ def hyperfine_export(times: dict[str, list[float]], unit: str = "second") -> dic
     }
 
 
+def test_paths_inside_the_repository_are_recorded_relative_to_it() -> None:
+    inside = benchmark.REPO / "target" / "release" / "examples" / "train_frozen_lake"
+    outside = Path("/opt/tools/train_frozen_lake")
+    assert benchmark.repo_relative(inside) == str(
+        Path("target", "release", "examples", "train_frozen_lake")
+    )
+    assert benchmark.repo_relative(outside) == str(outside)
+
+
+def test_commands_name_programs_relative_to_the_repository() -> None:
+    binary = benchmark.REPO / "target" / "release" / "examples" / "train_frozen_lake"
+    episodes = {variant: 10 for variant in benchmark.VARIANTS}
+    for command in benchmark.commands(binary, episodes, seed=0).values():
+        assert not any(str(benchmark.REPO) in argument for argument in command)
+
+
 def test_samples_pool_across_rounds() -> None:
     rounds = [
         hyperfine_export({"a": [1.0, 2.0], "b": [5.0]}),
