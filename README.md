@@ -137,7 +137,6 @@ passed through. In the other direction, each call from Python into
 ├── pyproject.toml           # Python dependencies, tool config, maturin build (uv)
 ├── Dockerfile               # Rust + Python test image
 ├── docker-compose.yml       # runs the test suite in the container
-├── run.sh                   # task runner: dev-test, build, test
 └── .github/workflows/ci.yml # CI: build and test on Ubuntu
 ```
 
@@ -154,10 +153,21 @@ Either Docker, or:
 
 ### Build and test
 
+On the host, against `.venv`. PyO3 builds against the interpreter named by
+`PYO3_PYTHON` (on Windows, `.venv\Scripts\python.exe`):
+
 ```bash
-./run.sh dev-test   # run the tests on the host against .venv
-./run.sh build      # build the Docker test image
-./run.sh test       # run the tests inside the container
+uv sync
+export PYO3_PYTHON="$PWD/.venv/bin/python"
+cargo test
+uv run pytest
+```
+
+In Docker, with Docker running:
+
+```bash
+docker compose build rl-test       # build the test image
+docker compose run --rm rl-test    # run the Rust tests inside it
 ```
 
 The slow equivalence tests are opt-in. They train the Q-learning agent ten
@@ -294,7 +304,7 @@ control and can be used to check that the relative results hold elsewhere.
    cargo install --locked hyperfine --version 2.0.0
    ```
 
-   Confirm the setup with `./run.sh dev-test`.
+   Confirm the setup with `cargo test` and `uv run pytest`.
 
 2. Reduce noise:
 
