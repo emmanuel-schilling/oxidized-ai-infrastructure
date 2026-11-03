@@ -184,6 +184,29 @@ Ubuntu for every push and pull request to `main`. Jobs time out after 15
 minutes, so a hung test fails the run rather than holding it for GitHub's
 six-hour default.
 
+### Running one implementation
+
+Each variant trains on slippery FrozenLake with the settings the tests and
+benchmarks use: 20,000 episodes and seed 0 unless `--episodes` or `--seed`
+says otherwise. `--evaluate` adds the trained greedy policy's exact
+probability of reaching the goal within the step limit:
+
+```bash
+# A: native Rust
+cargo run --release --example train_frozen_lake -- --evaluate
+# B: Rust agent on Gymnasium; uv run lets the embedded Python find .venv
+uv run cargo run --release --example train_frozen_lake -- --lake gymnasium --evaluate
+# C: pure Python
+uv run python reinforcement_learning/python/train_frozen_lake.py --evaluate
+# D: Rust agent driven from Python
+uv run python reinforcement_learning/python/train_frozen_lake.py --agent rust --evaluate
+```
+
+Each prints one line of JSON, for example
+`{"episodes": 20000, "steps": 425388, "success_probability": 0.7297660174187517}`.
+B and D print identical lines: the same agent with the same seeds, driven from
+Rust or from Python.
+
 ### Benchmarks
 
 The benchmark harness times the four Q-learning variants: whole training runs
@@ -214,7 +237,7 @@ py-spy, installed in `.venv` by `uv sync`. On macOS, py-spy needs `sudo`:
 
 ```bash
 sudo .venv/bin/py-spy record -o profile.svg -- \
-  .venv/bin/python reinforcement_learning/python/train_frozen_lake.py python 20000 0
+  .venv/bin/python reinforcement_learning/python/train_frozen_lake.py --agent python
 ```
 
 ## Benchmarking methodology

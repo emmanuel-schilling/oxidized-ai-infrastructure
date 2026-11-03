@@ -35,6 +35,7 @@ pub enum FrozenLakeError {
     InvalidMap(String),
     InvalidState(usize),
     InvalidAction(usize),
+    InvalidPolicy(String),
     ResetNeeded,
 }
 
@@ -44,6 +45,7 @@ impl fmt::Display for FrozenLakeError {
             Self::InvalidMap(msg) => write!(f, "Invalid FrozenLake map: {msg}"),
             Self::InvalidState(state) => write!(f, "Invalid FrozenLake state: {state}"),
             Self::InvalidAction(action) => write!(f, "Invalid FrozenLake action: {action}"),
+            Self::InvalidPolicy(msg) => write!(f, "Invalid FrozenLake policy: {msg}"),
             Self::ResetNeeded => write!(f, "FrozenLake step() called before reset()"),
         }
     }
@@ -184,6 +186,44 @@ impl FrozenLake {
             .get(state)
             .map(|by_action| by_action[action].as_slice())
             .ok_or(FrozenLakeError::InvalidState(state))
+    }
+
+    /// The exact expected reward within `max_steps` from the start, when each
+    /// state's action is drawn from `policy[state]`, a list of (action,
+    /// probability) pairs. The only reward is 1 for reaching the goal, so this
+    /// is the probability of reaching it in time.
+    pub fn success_probability(
+        &self,
+        policy: &[Vec<(usize, f64)>],
+        max_steps: usize,
+    ) -> Result<f64, FrozenLakeError> {
+        if policy.len() != self.num_states() {
+            return Err(FrozenLakeError::InvalidPolicy(format!(
+                "{} states, expected {}",
+                policy.len(),
+                self.num_states()
+            )));
+        }
+        // reach[s]: expected reward from s within k steps.
+        let mut reach = vec![0.0; self.num_states()];
+        for _ in 0..max_steps {
+            let mut next = vec![0.0; reach.len()];
+            for (state, value) in next.iter_mut().enumerate() {
+                for &(action, probability) in &policy[state] {
+                    for t in self.transitions(state, action)? {
+                        let future = if t.terminated {
+                            0.0
+                        } else {
+                            reach[t.next_state]
+                        };
+                        *value += probability * t.probability * (t.reward + future);
+                    }
+                }
+            }
+            reach = next;
+        }
+        let total: f64 = self.start_states.iter().map(|&start| reach[start]).sum();
+        Ok(total / self.start_states.len() as f64)
     }
 }
 
@@ -458,5 +498,56 @@ mod tests {
             );
         }
         assert_eq!(counts[0] + counts[1] + counts[4], DRAWS);
+    }
+
+    fn uniform_policy(actions: &[usize]) -> Vec<(usize, f64)> {
+        let probability = 1.0 / actions.len() as f64;
+        actions.iter().map(|&a| (a, probability)).collect()
+    }
+
+    #[test]
+    fn success_probability_follows_the_policy() {
+        // Down, down, right, down, right, right: a shortest path to the goal.
+        let mut path = vec![uniform_policy(&[LEFT]); 16];
+        for (state, action) in [
+            (0, DOWN),
+            (4, DOWN),
+            (8, RIGHT),
+            (9, DOWN),
+            (13, RIGHT),
+            (14, RIGHT),
+        ] {
+            path[state] = uniform_policy(&[action]);
+        }
+        let lake = lake(false);
+        assert_eq!(lake.success_probability(&path, 100), Ok(1.0));
+        // Six steps are needed, so five are not enough.
+        assert_eq!(lake.success_probability(&path, 5), Ok(0.0));
+
+        // Down from the start, then right into the hole at state 5.
+        path[4] = uniform_policy(&[RIGHT]);
+        assert_eq!(lake.success_probability(&path, 100), Ok(0.0));
+    }
+
+    #[test]
+    fn a_uniformly_random_policy_rarely_crosses_the_slippery_lake() {
+        let random = vec![uniform_policy(&[LEFT, DOWN, RIGHT, UP]); 16];
+        let probability = lake(true).success_probability(&random, 100).unwrap();
+        assert!(0.005 < probability && probability < 0.05, "{probability}");
+    }
+
+    #[test]
+    fn success_probability_rejects_invalid_policies() {
+        let lake = lake(false);
+        assert!(matches!(
+            lake.success_probability(&vec![uniform_policy(&[LEFT]); 15], 100),
+            Err(FrozenLakeError::InvalidPolicy(_))
+        ));
+        let mut policy = vec![uniform_policy(&[LEFT]); 16];
+        policy[3] = uniform_policy(&[4]);
+        assert_eq!(
+            lake.success_probability(&policy, 100),
+            Err(FrozenLakeError::InvalidAction(4))
+        );
     }
 }

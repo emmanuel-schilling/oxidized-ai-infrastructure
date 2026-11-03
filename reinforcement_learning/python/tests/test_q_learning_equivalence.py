@@ -11,7 +11,6 @@ curves to results/q_learning_equivalence_python.json.
 
 import json
 import math
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +18,7 @@ import gymnasium as gym
 import pytest
 import q_learning
 from q_learning import QLearningParams, train_episode
+from train_frozen_lake import Transitions, success_probability
 
 import oxidized_rl
 
@@ -32,31 +32,7 @@ ENV_SEED_OFFSET = 1_000
 # For correct code, all 20 checkpoints pass with about 99.8% probability
 # (Student's t with about 18 degrees of freedom).
 MAX_STANDARD_ERRORS = 5.0
-MAX_EPISODE_STEPS = 100
 RESULTS = Path(__file__).resolve().parents[3] / "results"
-
-Transitions = dict[int, dict[int, list[tuple[float, int, float, bool]]]]
-QValues = Callable[[int], list[float]]
-
-
-def success_probability(q_values: QValues, transitions: Transitions) -> float:
-    """The exact probability that the greedy policy reaches the goal from the
-    start state within the step limit. Tied actions share the choice equally,
-    as greedy_action does on average, so scoring draws nothing from the agent's
-    generator and leaves training unchanged."""
-    # reach[s]: probability of reaching the goal from s within k steps.
-    reach = [0.0] * len(transitions)
-    for _ in range(MAX_EPISODE_STEPS):
-        next_reach = [0.0] * len(reach)
-        for state in range(len(reach)):
-            q = q_values(state)
-            best = [action for action, value in enumerate(q) if value == max(q)]
-            for action in best:
-                for probability, next_state, reward, terminated in transitions[state][action]:
-                    future = 0.0 if terminated else reach[next_state]
-                    next_reach[state] += probability * (reward + future) / len(best)
-        reach = next_reach
-    return reach[0]
 
 
 def make_lake(is_slippery: bool) -> tuple[Any, Transitions]:

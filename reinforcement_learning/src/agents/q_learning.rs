@@ -166,6 +166,22 @@ impl QLearning {
             .map_or(0, |(action, _)| action))
     }
 
+    /// The greedy policy as (action, probability) pairs for each state: tied
+    /// highest-valued actions share the probability equally, which is the
+    /// distribution `greedy_action` samples from. Reading it draws nothing from
+    /// the agent's generator.
+    pub fn greedy_policy(&self) -> Vec<Vec<(usize, f64)>> {
+        self.q
+            .chunks(self.num_actions)
+            .map(|values| {
+                let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+                let best: Vec<usize> = (0..values.len()).filter(|&a| values[a] == max).collect();
+                let probability = 1.0 / best.len() as f64;
+                best.into_iter().map(|a| (a, probability)).collect()
+            })
+            .collect()
+    }
+
     /// With probability epsilon a uniformly random action, otherwise the greedy one.
     pub fn select_action(&mut self, state: usize) -> Result<usize, QLearningError> {
         if state >= self.num_states() {
@@ -489,5 +505,15 @@ mod tests {
             agent.train_episode(&mut env, Some(0)),
             Err(EpisodeError::Agent(QLearningError::InvalidState(5)))
         ));
+    }
+
+    #[test]
+    fn greedy_policy_shares_probability_between_tied_actions() {
+        let mut agent = agent(2, 3, PARAMS);
+        agent.update(1, 2, 1.0, 0, true).unwrap();
+        let policy = agent.greedy_policy();
+        let third = 1.0 / 3.0;
+        assert_eq!(policy[0], vec![(0, third), (1, third), (2, third)]);
+        assert_eq!(policy[1], vec![(2, 1.0)]);
     }
 }

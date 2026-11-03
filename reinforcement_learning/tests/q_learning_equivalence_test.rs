@@ -33,40 +33,6 @@ const ENV_SEED_OFFSET: u64 = 1_000;
 /// (Student's t with about 18 degrees of freedom).
 const MAX_STANDARD_ERRORS: f64 = 5.0;
 
-/// The exact probability that the agent's greedy policy reaches the goal from
-/// the start state within the step limit. Tied actions share the choice
-/// equally, as `greedy_action` does on average, so scoring draws nothing from
-/// the agent's generator and leaves training unchanged.
-fn success_probability(agent: &QLearning, lake: &FrozenLake) -> f64 {
-    // reach[s]: probability of reaching the goal from s within k steps.
-    let mut reach = vec![0.0; lake.num_states()];
-    for _ in 0..DEFAULT_MAX_EPISODE_STEPS {
-        let mut next = vec![0.0; reach.len()];
-        for (state, value) in next.iter_mut().enumerate() {
-            let q = agent
-                .q_values(state)
-                .expect("FAIL: Q-table is missing a state");
-            let max = q.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-            let best: Vec<usize> = (0..q.len()).filter(|&a| q[a] == max).collect();
-            for &action in &best {
-                for t in lake
-                    .transitions(state, action)
-                    .expect("FAIL: Lake is missing a transition")
-                {
-                    let future = if t.terminated {
-                        0.0
-                    } else {
-                        reach[t.next_state]
-                    };
-                    *value += t.probability * (t.reward + future) / best.len() as f64;
-                }
-            }
-        }
-        reach = next;
-    }
-    reach[0]
-}
-
 /// Trains a fresh agent on `env` and scores it every `CHECKPOINT_EVERY` episodes.
 fn learning_curve<E>(env: &mut E, lake: &FrozenLake, run: u64) -> Vec<f64>
 where
@@ -81,7 +47,12 @@ where
             .train_episode(env, seed)
             .expect("FAIL: Training episode returned an error");
         if (episode + 1) % CHECKPOINT_EVERY == 0 {
-            curve.push(success_probability(&agent, lake));
+            // Scoring reads the greedy policy without drawing from the agent's
+            // generator, so it leaves training unchanged.
+            let score = lake
+                .success_probability(&agent.greedy_policy(), DEFAULT_MAX_EPISODE_STEPS)
+                .expect("FAIL: Could not score the greedy policy");
+            curve.push(score);
         }
     }
     curve
@@ -112,36 +83,6 @@ fn assert_curves_agree(a: &[Vec<f64>], b: &[Vec<f64>]) {
             (checkpoint + 1) * CHECKPOINT_EVERY
         );
     }
-}
-
-#[test]
-fn test_success_probability_is_one_for_the_shortest_path() {
-    let lake = FrozenLake::new(&MAP_4X4, false, Some(DEFAULT_MAX_EPISODE_STEPS))
-        .expect("FAIL: Could not build the Rust FrozenLake");
-    let mut agent = QLearning::new(16, 4, PARAMS, 0).expect("FAIL: Could not build the agent");
-    // Down, down, right, down, right, right: one of the 6-step shortest paths.
-    // A terminal update to 1.0 with step size 0.02 gives each step's action
-    // the only nonzero value in its row.
-    for (state, action) in [(0, 1), (4, 1), (8, 2), (9, 1), (13, 2), (14, 2)] {
-        agent
-            .update(state, action, 1.0, 0, true)
-            .expect("FAIL: update() returned an error");
-    }
-    assert_eq!(success_probability(&agent, &lake), 1.0);
-}
-
-#[test]
-fn test_success_probability_of_an_untrained_agent_is_the_random_policys() {
-    // An all-zero table ties every action, so the policy is uniformly random,
-    // which reaches the goal of the slippery lake about 1.5% of the time.
-    let lake = FrozenLake::new(&MAP_4X4, true, Some(DEFAULT_MAX_EPISODE_STEPS))
-        .expect("FAIL: Could not build the Rust FrozenLake");
-    let agent = QLearning::new(16, 4, PARAMS, 0).expect("FAIL: Could not build the agent");
-    let probability = success_probability(&agent, &lake);
-    assert!(
-        0.005 < probability && probability < 0.05,
-        "FAIL: Random-policy success probability {probability}"
-    );
 }
 
 #[test]

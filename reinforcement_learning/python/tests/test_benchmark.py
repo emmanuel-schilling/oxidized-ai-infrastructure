@@ -45,9 +45,14 @@ def test_commands_cover_every_variant_with_a_startup_baseline() -> None:
     commands = benchmark.commands(Path("train_frozen_lake"), episodes, seed=3)
     assert len(commands) == 2 * len(benchmark.VARIANTS)
     for variant in benchmark.VARIANTS:
-        assert commands[f"{variant}/train"][-2:] == [str(episodes[variant]), "3"]
-        assert commands[f"{variant}/startup"][-2:] == ["0", "3"]
-        assert commands[f"{variant}/train"][:-2] == commands[f"{variant}/startup"][:-2]
+        assert commands[f"{variant}/train"][-4:] == [
+            "--seed",
+            "3",
+            "--episodes",
+            str(episodes[variant]),
+        ]
+        assert commands[f"{variant}/startup"][-4:] == ["--seed", "3", "--episodes", "0"]
+        assert commands[f"{variant}/train"][:-1] == commands[f"{variant}/startup"][:-1]
 
 
 def hyperfine_export(times: dict[str, list[float]], unit: str = "second") -> dict[str, Any]:
@@ -177,20 +182,38 @@ def test_microbenchmark_cases_run() -> None:
 def test_training_program_prints_the_step_count(
     agent: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    train_frozen_lake.main([agent, "50", "0"])
+    train_frozen_lake.main(["--agent", agent, "--episodes", "50"])
     printed = json.loads(capsys.readouterr().out)
     # Each episode takes between 1 and 100 steps.
     assert printed["episodes"] == 50 and 50 <= printed["steps"] <= 5_000
+    assert "success_probability" not in printed
+
+    train_frozen_lake.main(["--agent", agent, "--episodes", "50", "--evaluate"])
+    assert 0.0 <= json.loads(capsys.readouterr().out)["success_probability"] <= 1.0
 
 
 def test_both_python_driven_programs_take_the_same_steps() -> None:
     # The Rust agent driven from Python reproduces the Rust-driven run exactly
     # (see the equivalence tests); here it must at least match itself.
-    assert train_frozen_lake.train("rust", 50, 0) == train_frozen_lake.train("rust", 50, 0)
-    assert train_frozen_lake.train("rust", 0, 0) == 0
+    assert train_frozen_lake.train("rust", 50, 0)[2] == train_frozen_lake.train("rust", 50, 0)[2]
+    assert train_frozen_lake.train("rust", 0, 0)[2] == 0
 
 
-@pytest.mark.parametrize("argv", [[], ["python", "10"], ["java", "10", "0"], ["rust", "-1", "0"]])
+def test_training_program_defaults_match_the_benchmarks() -> None:
+    args = train_frozen_lake.parse_args([])
+    assert (args.agent, args.episodes, args.seed, args.evaluate) == ("python", 20_000, 0, False)
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["python"],
+        ["--agent", "java"],
+        ["--episodes", "-1"],
+        ["--seed", "seed"],
+        ["--episodes"],
+    ],
+)
 def test_training_program_rejects_invalid_arguments(argv: list[str]) -> None:
     with pytest.raises(SystemExit):
         train_frozen_lake.parse_args(argv)

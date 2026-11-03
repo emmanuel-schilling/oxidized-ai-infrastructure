@@ -85,15 +85,16 @@ def commands(rust_binary: Path, episodes: dict[str, int], seed: int) -> dict[str
         repo_relative(path) for path in (rust_binary, sys.executable, TRAIN_SCRIPT)
     )
     programs = {
-        "rust_native": [binary, "native"],
-        "rust_gymnasium": [binary, "gymnasium"],
-        "python": [python, script, "python"],
-        "rust_from_python": [python, script, "rust"],
+        "rust_native": [binary, "--lake", "native"],
+        "rust_gymnasium": [binary, "--lake", "gymnasium"],
+        "python": [python, script, "--agent", "python"],
+        "rust_from_python": [python, script, "--agent", "rust"],
     }
     result = {}
     for variant in VARIANTS:
-        result[f"{variant}/train"] = programs[variant] + [str(episodes[variant]), str(seed)]
-        result[f"{variant}/startup"] = programs[variant] + ["0", str(seed)]
+        run = ["--seed", str(seed), "--episodes"]
+        result[f"{variant}/train"] = programs[variant] + run + [str(episodes[variant])]
+        result[f"{variant}/startup"] = programs[variant] + run + ["0"]
     return result
 
 
