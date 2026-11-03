@@ -11,3 +11,9 @@ lto = true
 codegen-units = 1
 panic = "abort"
 
+# The Python extension oxidized_rl: release settings, but a panic unwinds so
+# PyO3 can raise it as a Python exception instead of aborting the interpreter.
+[profile.release-python]
+inherits = "release"
+panic = "unwind"
+

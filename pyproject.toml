@@ -29,7 +29,7 @@ module-name = "oxidized_rl"
 # the crate against libpython.
 features = ["pyo3/extension-module"]
 # Optimized even for local installs: the module is benchmarked.
-profile = "release"
+profile = "release-python"
 
 [tool.uv]
 # Rebuild the extension module when its Rust sources change.
