@@ -1,6 +1,6 @@
 # oxidized-ai-infrastructure
 
-[![CI](https://github.com/me-like-coffee/oxidized-ai-infrastructure/actions/workflows/ci.yml/badge.svg)](https://github.com/me-like-coffee/oxidized-ai-infrastructure/actions/workflows/ci.yml)
+[![CI](https://github.com/emmanuel-schilling/oxidized-ai-infrastructure/actions/workflows/ci.yml/badge.svg)](https://github.com/emmanuel-schilling/oxidized-ai-infrastructure/actions/workflows/ci.yml)
 
 Reinforcement learning algorithms from the University of Alberta
 [Reinforcement Learning specialization](https://www.coursera.org/specializations/reinforcement-learning)
@@ -361,6 +361,31 @@ starts.
 - [x] Tabular Q-learning on FrozenLake
       ([results](docs/results/q_learning_frozen_lake/2026-11-02_i9-8950hk/README.md))
 - [ ] Further algorithms from the specialization
+
+### Future work: amortizing the boundary
+
+The Q-learning results show that per-call overhead, not computation, sets the
+cost of crossing between Python and Rust: a call from Python into the Rust
+agent costs about 0.49 µs, of which the Rust work is about 24 ns. Every
+variant crosses the boundary once per step, one environment at a time. The
+next experiments measure how that overhead is amortized:
+
+- [ ] **Batched agent calls:** `select_actions` and `update_batch` methods on
+      `oxidized_rl.QLearningAgent` that take NumPy arrays without copying
+      (through the `numpy` crate's `PyReadonlyArray`), with time per step
+      plotted against batch size, from 1 to about 4,096, to find where the
+      crossing cost stops mattering.
+- [ ] **Vectorized environments:** the batched agent paired with Gymnasium's
+      vector environments, and with a vectorized native FrozenLake for
+      comparison, so that environment steps are batched as well.
+- [ ] **Releasing the GIL:** a Rust method that runs many episodes on the
+      native environment in one call, timed with the GIL held and released
+      (`allow_threads`) across several Python threads, and optionally on a
+      free-threaded Python build.
+- [ ] **Cross-platform checks:** a run on a dedicated Linux machine, and one
+      on ARM, to test whether the ratios between variants hold; and
+      instruction counts in CI (for example with `iai-callgrind`), which are
+      unaffected by noise on shared runners.
 
 ## License
 
